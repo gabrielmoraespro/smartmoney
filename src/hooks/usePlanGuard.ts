@@ -23,13 +23,11 @@ export function usePlanGuard(): PlanGuardResult {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
-
       const [{ data: profileData }, { count }] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', user.id).single(),
         supabase.from('accounts').select('id', { count: 'exact', head: true })
           .eq('user_id', user.id).eq('is_active', true),
       ])
-
       setProfile(profileData as Profile | null)
       setConnectedAccounts(count ?? 0)
     } finally {
