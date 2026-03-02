@@ -1,61 +1,70 @@
-import type { Handler } from '@netlify/functions';
-import { createAdminClient } from '../../src/lib/supabase';
-
-/** Obtém API Key da Pluggy via Client Credentials */
-async function getPluggyApiKey(): Promise<string> {
-  const res = await fetch('https://api.pluggy.ai/auth', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      clientId:     process.env.PLUGGY_CLIENT_ID,
-      clientSecret: process.env.PLUGGY_CLIENT_SECRET,
-    }),
-  });
-  if (!res.ok) throw new Error(`Pluggy auth failed: ${res.status}`);
-  const data = await res.json();
-  return data.apiKey as string;
-}
+/**
+ * netlify/functions/pluggy-token.ts
+ *
+ * Gera um Connect Token da Pluggy para o usuário autenticado,
+ * validando o limite de contas do plano antes de emitir o token.
+ */
+import type { Handler } from '@netlify/functions'
+import { createAdminClient } from '../../src/lib/supabase'
+import { getAccountLimitByPlan } from '../../src/lib/plan'
+import { PluggyClient } from './_lib/pluggy-client'
 
 export const handler: Handler = async (event) => {
-  // Apenas POST
   if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, body: 'Method Not Allowed' };
+    return { statusCode: 405, body: 'Method Not Allowed' }
   }
 
-  // Valida sessão Supabase via Bearer token
-  const authHeader = event.headers.authorization ?? '';
-  const jwt = authHeader.replace('Bearer ', '');
-  if (!jwt) return { statusCode: 401, body: 'Unauthorized' };
+  const jwt = (event.headers.authorization ?? '').replace('Bearer ', '').trim()
+  if (!jwt) return { statusCode: 401, body: 'Unauthorized' }
 
-  const supabase = createAdminClient();
-  const { data: { user }, error } = await supabase.auth.getUser(jwt);
-  if (error || !user) return { statusCode: 401, body: 'Invalid session' };
+  const supabase = createAdminClient()
+  const { data: { user }, error: authError } = await supabase.auth.getUser(jwt)
+  if (authError || !user) return { statusCode: 401, body: 'Invalid session' }
 
   try {
-    const apiKey = await getPluggyApiKey();
+    const [{ data: profile }, { count: accountCount }] = await Promise.all([
+      supabase
+        .from('profiles')
+        .select('plan_status')
+        .eq('id', user.id)
+        .single(),
+      supabase
+        .from('accounts')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('is_active', true),
+    ])
 
-    // Gera Connect Token (expira em 30 min)
-    const tokenRes = await fetch('https://api.pluggy.ai/connect_token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-KEY': apiKey,
-      },
-      body: JSON.stringify({
-        clientUserId: user.id, // vincula o token ao usuário
-      }),
-    });
+    const accountLimit = getAccountLimitByPlan(profile?.plan_status)
 
-    if (!tokenRes.ok) throw new Error(`Token generation failed: ${tokenRes.status}`);
-    const { accessToken } = await tokenRes.json();
+    if ((accountCount ?? 0) >= accountLimit) {
+      return {
+        statusCode: 403,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          error: `Limite de contas atingido para seu plano (${accountLimit} conta${accountLimit > 1 ? 's' : ''}).`,
+        }),
+      }
+    }
+
+    const pluggyClient = new PluggyClient(
+      process.env.PLUGGY_CLIENT_ID!,
+      process.env.PLUGGY_CLIENT_SECRET!,
+    )
+
+    const accessToken = await pluggyClient.createConnectToken(user.id)
 
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ accessToken }),
-    };
+    }
   } catch (err: any) {
-    console.error('[pluggy-token]', err.message);
-    return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
+    console.error('[pluggy-token] erro:', err.message)
+    return {
+      statusCode: 500,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ error: err.message }),
+    }
   }
-};
+}
