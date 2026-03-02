@@ -1,45 +1,9 @@
-<<<<<<< HEAD
-import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
-import type { Profile } from '../lib/types'
-
-interface PlanGuardResult {
-  profile: Profile | null
-  isPro: boolean
-  isLoading: boolean
-  refetch: () => void
-}
-
-export function usePlanGuard(): PlanGuardResult {
-  const [profile, setProfile] = useState<Profile | null>(null)
-  const [isLoading, setLoading] = useState(true)
-
-  const fetchProfile = async () => {
-    setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setLoading(false); return }
-
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single()
-
-    setProfile(data)
-    setLoading(false)
-  }
-
-  useEffect(() => { fetchProfile() }, [])
-
-  const isPro = profile?.plan_status === 'pro' || profile?.plan_status === 'pro_annual'
-  return { profile, isPro, isLoading, refetch: fetchProfile }
-=======
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Profile } from '../lib/types'
 import { getAccountLimitByPlan, isProPlan } from '../lib/plan'
 
-type PlanGuardResult = {
+export type PlanGuardResult = {
   profile: Profile | null
   isPro: boolean
   accountLimit: number
@@ -49,47 +13,35 @@ type PlanGuardResult = {
   refreshPlanContext: () => Promise<void>
 }
 
-/**
- * Hook central de plano: status do usuário + limite de contas conectadas.
- */
 export function usePlanGuard(): PlanGuardResult {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [connectedAccounts, setConnectedAccounts] = useState(0)
   const [isLoading, setLoading] = useState(true)
 
   const refreshPlanContext = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
+    setLoading(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const [{ data: profileData }, { count }] = await Promise.all([
+        supabase.from('profiles').select('*').eq('id', user.id).single(),
+        supabase.from('accounts').select('id', { count: 'exact', head: true })
+          .eq('user_id', user.id).eq('is_active', true),
+      ])
+
+      setProfile(profileData as Profile | null)
+      setConnectedAccounts(count ?? 0)
+    } finally {
       setLoading(false)
-      return
     }
-
-    const [{ data: profileData }, { count }] = await Promise.all([
-      supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single(),
-      supabase
-        .from('accounts')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .eq('is_active', true),
-    ])
-
-    setProfile(profileData)
-    setConnectedAccounts(count ?? 0)
-    setLoading(false)
   }, [])
 
-  useEffect(() => {
-    refreshPlanContext()
-  }, [refreshPlanContext])
+  useEffect(() => { refreshPlanContext() }, [refreshPlanContext])
 
   const isPro = isProPlan(profile?.plan_status)
   const accountLimit = getAccountLimitByPlan(profile?.plan_status)
   const canConnectAccount = connectedAccounts < accountLimit
 
   return { profile, isPro, accountLimit, connectedAccounts, canConnectAccount, isLoading, refreshPlanContext }
->>>>>>> origin/main
 }
