@@ -1,107 +1,93 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card'
-import { ArrowDownCircle, ArrowUpCircle, Wallet, TrendingUp } from 'lucide-react'
-import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend
-} from 'recharts'
+import { Button } from '../../components/ui/button'
+import { ArrowDownCircle, ArrowUpCircle, Wallet, TrendingUp, Plus } from 'lucide-react'
+import type { Transaction } from '../../lib/types'
 
-const COLORS = ['#10b981','#3b82f6','#f59e0b','#ef4444','#8b5cf6','#ec4899','#06b6d4','#84cc16']
-const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-const fmtShort = (v: number) => v >= 1000 ? `R$${(v/1000).toFixed(1)}k` : `R$${v.toFixed(0)}`
+interface Stats {
+  income: number
+  expenses: number
+  balance: number
+  recentTransactions: Transaction[]
+}
 
 export default function Dashboard() {
-  const [stats, setStats] = useState({ income: 0, expenses: 0, balance: 0 })
-  const [monthly, setMonthly] = useState<{ month: string; receitas: number; despesas: number }[]>([])
-  const [categories, setCategories] = useState<{ name: string; value: number }[]>([])
+  const navigate  = useNavigate()
+  const [stats, setStats]     = useState<Stats>({ income: 0, expenses: 0, balance: 0, recentTransactions: [] })
   const [loading, setLoading] = useState(true)
+  const [userName, setUserName] = useState('')
 
   useEffect(() => {
     const load = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
+      setUserName(user.user_metadata?.full_name?.split(' ')[0] ?? 'você')
+
       const startOfMonth = new Date()
       startOfMonth.setDate(1)
-      startOfMonth.setHours(0, 0, 0, 0)
+      const dateStr = startOfMonth.toISOString().substring(0, 10)
 
-      const sixMonthsAgo = new Date()
-      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5)
-      sixMonthsAgo.setDate(1)
+      const [{ data: txData }, { data: recentData }] = await Promise.all([
+        supabase.from('transactions').select('amount, type').eq('user_id', user.id).gte('date', dateStr),
+        supabase.from('transactions').select('*').eq('user_id', user.id)
+          .order('date', { ascending: false }).limit(5),
+      ])
 
-      const { data: allData } = await supabase
-        .from('transactions')
-        .select('amount, type, date, category')
-        .eq('user_id', user.id)
-        .gte('date', sixMonthsAgo.toISOString().substring(0, 10))
-        .order('date', { ascending: true })
+      const income   = (txData ?? []).filter(t => t.type === 'credit').reduce((s, t) => s + Number(t.amount), 0)
+      const expenses = (txData ?? []).filter(t => t.type === 'debit').reduce((s, t) => s + Math.abs(Number(t.amount)), 0)
 
-      if (allData) {
-        const startKey = startOfMonth.toISOString().substring(0, 10)
-        const thisMonth = allData.filter(t => t.date >= startKey)
-
-        const income   = thisMonth.filter(t => t.type === 'credit').reduce((s, t) => s + Number(t.amount), 0)
-        const expenses = thisMonth.filter(t => t.type === 'debit').reduce((s, t) => s + Math.abs(Number(t.amount)), 0)
-        setStats({ income, expenses, balance: income - expenses })
-
-        // Agrupar por mês
-        const byMonth: Record<string, { receitas: number; despesas: number }> = {}
-        allData.forEach(t => {
-          const d = new Date(t.date + 'T00:00:00')
-          const key = d.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' })
-          if (!byMonth[key]) byMonth[key] = { receitas: 0, despesas: 0 }
-          if (t.type === 'credit') byMonth[key].receitas += Number(t.amount)
-          else byMonth[key].despesas += Math.abs(Number(t.amount))
-        })
-        setMonthly(Object.entries(byMonth).map(([month, v]) => ({ month, ...v })))
-
-        // Categorias deste mês
-        const catMap: Record<string, number> = {}
-        thisMonth.filter(t => t.type === 'debit').forEach(t => {
-          const cat = (t as any).category ?? 'Outros'
-          catMap[cat] = (catMap[cat] ?? 0) + Math.abs(Number(t.amount))
-        })
-        setCategories(Object.entries(catMap).sort((a,b) => b[1]-a[1]).slice(0,8).map(([name,value]) => ({ name, value })))
-      }
+      setStats({ income, expenses, balance: income - expenses, recentTransactions: (recentData ?? []) as Transaction[] })
       setLoading(false)
     }
     load()
   }, [])
 
+  const fmt = (v: number) => Math.abs(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+  const month = new Date().toLocaleString('pt-BR', { month: 'long', year: 'numeric' })
+
   if (loading) return (
-    <div className="flex items-center justify-center h-48">
+    <div className="flex items-center justify-center h-64">
       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
     </div>
   )
 
-  const hasData = stats.income > 0 || stats.expenses > 0
+  const isEmpty = stats.income === 0 && stats.expenses === 0
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold">Dashboard</h2>
-        <p className="text-muted-foreground">
-          Resumo de {new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold">Olá, {userName}! 👋</h2>
+          <p className="text-muted-foreground capitalize">{month}</p>
+        </div>
+        <Button onClick={() => navigate('/app/conectar-banco')} size="sm">
+          <Plus className="h-4 w-4 mr-2" /> Conectar banco
+        </Button>
       </div>
 
+      {/* Cards de resumo */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Saldo do Mês</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Saldo do Mês</CardTitle>
             <Wallet className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <p className={`text-2xl font-bold ${stats.balance >= 0 ? 'text-green-500' : 'text-red-500'}`}>
               {fmt(stats.balance)}
             </p>
-            <p className="text-xs text-muted-foreground mt-1">{stats.balance >= 0 ? '✅ No positivo' : '⚠️ No negativo'}</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {stats.balance >= 0 ? '▲ Saldo positivo' : '▼ Saldo negativo'}
+            </p>
           </CardContent>
         </Card>
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Receitas</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Receitas</CardTitle>
             <ArrowUpCircle className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
@@ -109,71 +95,61 @@ export default function Dashboard() {
             <p className="text-xs text-muted-foreground mt-1">Entradas no mês</p>
           </CardContent>
         </Card>
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Despesas</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Despesas</CardTitle>
             <ArrowDownCircle className="h-4 w-4 text-red-500" />
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold text-red-500">{fmt(stats.expenses)}</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {stats.income > 0 ? `${((stats.expenses/stats.income)*100).toFixed(0)}% da receita` : 'Saídas no mês'}
-            </p>
+            <p className="text-xs text-muted-foreground mt-1">Saídas no mês</p>
           </CardContent>
         </Card>
       </div>
 
-      {!hasData ? (
-        <Card className="border-dashed">
-          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            <TrendingUp className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="font-semibold mb-2">Nenhuma transação ainda</h3>
-            <p className="text-sm text-muted-foreground max-w-xs">
-              Conecte seu banco em "Conectar Banco" para sincronizar suas transações automaticamente.
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {monthly.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm font-medium">Evolução — últimos 6 meses</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={220}>
-                  <BarChart data={monthly} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-                    <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                    <YAxis tickFormatter={fmtShort} tick={{ fontSize: 11 }} width={55} />
-                    <Tooltip formatter={(v: number) => fmt(v)} contentStyle={{ fontSize: 12 }} />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Bar dataKey="receitas" name="Receitas" fill="#10b981" radius={[4,4,0,0]} />
-                    <Bar dataKey="despesas" name="Despesas" fill="#ef4444" radius={[4,4,0,0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
+      {/* Transações recentes */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-base">Transações recentes</CardTitle>
+          <Button variant="ghost" size="sm" onClick={() => navigate('/app/transacoes')}>
+            Ver todas →
+          </Button>
+        </CardHeader>
+        <CardContent className="p-0">
+          {isEmpty ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center px-6">
+              <TrendingUp className="h-12 w-12 text-muted-foreground mb-4 opacity-30" />
+              <h3 className="font-semibold mb-1">Nenhuma transação ainda</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Conecte seu banco para sincronizar automaticamente
+              </p>
+              <Button onClick={() => navigate('/app/conectar-banco')}>
+                🏦 Conectar banco agora
+              </Button>
+            </div>
+          ) : (
+            <div className="divide-y">
+              {stats.recentTransactions.map((t) => (
+                <div key={t.id} className="flex items-center justify-between px-6 py-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{t.description}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(t.date + 'T00:00:00').toLocaleDateString('pt-BR')}
+                      {t.category && ` · ${t.category}`}
+                    </p>
+                  </div>
+                  <span className={`text-sm font-semibold ml-4 tabular-nums ${
+                    t.type === 'credit' ? 'text-green-500' : 'text-red-500'
+                  }`}>
+                    {t.type === 'credit' ? '+' : '-'}{fmt(t.amount)}
+                  </span>
+                </div>
+              ))}
+            </div>
           )}
-          {categories.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm font-medium">Despesas por categoria</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={220}>
-                  <PieChart>
-                    <Pie data={categories} cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={3} dataKey="value">
-                      {categories.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                    </Pie>
-                    <Tooltip formatter={(v: number) => fmt(v)} contentStyle={{ fontSize: 12 }} />
-                    <Legend formatter={(v, e: any) => `${v} (${fmt(e.payload.value)})`} wrapperStyle={{ fontSize: 11 }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      )}
+        </CardContent>
+      </Card>
     </div>
   )
 }
