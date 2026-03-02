@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { supabase } from '../../lib/supabase'
+import { getUserAuthHeaders, supabase } from '../../lib/supabase'
 import type { Account, Transaction } from '../../lib/types'
 import { Badge } from '../../components/ui/badge'
 import { Button } from '../../components/ui/button'
@@ -40,10 +40,14 @@ export default function Dashboard() {
 
   useEffect(() => {
     const load = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          setLoading(false)
+          return
+        }
 
-      const now = new Date()
+        const now = new Date()
       const startOfMonth = new Date(now)
       startOfMonth.setDate(1)
       startOfMonth.setHours(0, 0, 0, 0)
@@ -52,18 +56,20 @@ export default function Dashboard() {
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 29)
       thirtyDaysAgo.setHours(0, 0, 0, 0)
 
-      const [{ data: txData }, { data: accountsData }] = await Promise.all([
-        supabase
-          .from('transactions')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('date', { ascending: false })
-          .limit(200),
-        supabase
-          .from('accounts')
-          .select('id, bank_name, is_active')
-          .eq('user_id', user.id),
+      const headers = await getUserAuthHeaders()
+      const baseUrl = import.meta.env.VITE_SUPABASE_URL as string
+
+      const [txRes, accountsRes] = await Promise.all([
+        fetch(`${baseUrl}/rest/v1/transactions?user_id=eq.${user.id}&order=date.desc&limit=200`, { headers }),
+        fetch(`${baseUrl}/rest/v1/accounts?user_id=eq.${user.id}&select=id,bank_name,is_active`, { headers }),
       ])
+
+      if (!txRes.ok || !accountsRes.ok) {
+        throw new Error('Falha ao carregar dados do dashboard com autorização do usuário.')
+      }
+
+      const txData = await txRes.json()
+      const accountsData = await accountsRes.json()
 
       const allAccounts = (accountsData ?? []) as Pick<Account, 'id' | 'bank_name' | 'is_active'>[]
       const map = allAccounts.reduce((acc, item) => {
@@ -104,15 +110,18 @@ export default function Dashboard() {
           else dailyMap[t.date].saidas += Math.abs(Number(t.amount))
         })
 
-      setCashflow30d(
-        Object.entries(dailyMap).map(([date, values]) => ({
-          day: new Date(`${date}T00:00:00`).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-          entradas: values.entradas,
-          saidas: values.saidas,
-        }))
-      )
-
-      setLoading(false)
+        setCashflow30d(
+          Object.entries(dailyMap).map(([date, values]) => ({
+            day: new Date(`${date}T00:00:00`).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+            entradas: values.entradas,
+            saidas: values.saidas,
+          }))
+        )
+      } catch (error) {
+        console.error('[dashboard] erro ao carregar dados', error)
+      } finally {
+        setLoading(false)
+      }
     }
 
     load()

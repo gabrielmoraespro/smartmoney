@@ -1,21 +1,7 @@
 import type { Handler } from '@netlify/functions';
 import { createAdminClient } from '../../src/lib/supabase';
 import { getAccountLimitByPlan } from '../../src/lib/plan';
-
-/** Obtém API Key da Pluggy via Client Credentials */
-async function getPluggyApiKey(): Promise<string> {
-  const res = await fetch('https://api.pluggy.ai/auth', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      clientId: process.env.PLUGGY_CLIENT_ID,
-      clientSecret: process.env.PLUGGY_CLIENT_SECRET,
-    }),
-  });
-  if (!res.ok) throw new Error(`Pluggy auth failed: ${res.status}`);
-  const data = await res.json();
-  return data.apiKey as string;
-}
+import { PluggyClient } from './_lib/pluggy-client';
 
 export const handler: Handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -50,21 +36,12 @@ export const handler: Handler = async (event) => {
       };
     }
 
-    const apiKey = await getPluggyApiKey();
+    const pluggyClient = new PluggyClient(
+      process.env.PLUGGY_CLIENT_ID!,
+      process.env.PLUGGY_CLIENT_SECRET!,
+    );
 
-    const tokenRes = await fetch('https://api.pluggy.ai/connect_token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-KEY': apiKey,
-      },
-      body: JSON.stringify({
-        clientUserId: user.id,
-      }),
-    });
-
-    if (!tokenRes.ok) throw new Error(`Token generation failed: ${tokenRes.status}`);
-    const { accessToken } = await tokenRes.json();
+    const accessToken = await pluggyClient.createConnectToken(user.id);
 
     return {
       statusCode: 200,

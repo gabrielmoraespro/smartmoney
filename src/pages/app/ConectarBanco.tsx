@@ -2,22 +2,12 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { usePlanGuard } from '../../hooks/usePlanGuard'
 import type { Account } from '../../lib/types'
+import { PluggyConnect } from '../../components/pluggy/PluggyConnect'
 import { Button } from '../../components/ui/button'
 import { Badge } from '../../components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
 import { Lock, Landmark, CheckCircle, AlertCircle, ShieldCheck, RefreshCw, Trash2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-
-declare global {
-  interface Window {
-    PluggyConnect: new (config: {
-      connectToken: string
-      onSuccess: (data: { item: { id: string } }) => void
-      onError: (error: { message: string }) => void
-      onClose: () => void
-    }) => { init: () => void }
-  }
-}
 
 export default function ConectarBanco() {
   const { isLoading, isPro, accountLimit, connectedAccounts, canConnectAccount, refreshPlanContext } = usePlanGuard()
@@ -26,6 +16,7 @@ export default function ConectarBanco() {
   const [syncing, setSyncing] = useState(false)
   const [loadingAccounts, setLoadingAccounts] = useState(true)
   const [removingId, setRemovingId] = useState<string | null>(null)
+  const [connectToken, setConnectToken] = useState('')
   const [accounts, setAccounts] = useState<Account[]>([])
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle')
   const [message, setMessage] = useState('')
@@ -54,16 +45,62 @@ export default function ConectarBanco() {
     fetchConnectedAccounts()
   }, [])
 
-  const loadPluggySDK = (): Promise<void> => new Promise((resolve, reject) => {
-    if (window.PluggyConnect) return resolve()
+  const getConnectToken = async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) throw new Error('Sessão expirada. Faça login novamente.')
 
-    const script = document.createElement('script')
-    script.src = 'https://cdn.pluggy.ai/pluggy-connect/v2/pluggy-connect.js'
-    script.onload = () => resolve()
-    script.onerror = () => reject(new Error('Não foi possível carregar o SDK da Pluggy. Verifique sua conexão.'))
+    const tokenRes = await fetch('/.netlify/functions/pluggy-token', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+      },
+    })
+    const tokenData = await tokenRes.json()
+    if (!tokenRes.ok) throw new Error(tokenData.error ?? 'Falha ao gerar token de conexão.')
+    return { token: tokenData.accessToken as string, sessionToken: session.access_token }
+  }
 
-    document.head.appendChild(script)
-  })
+  const openPluggy = async () => {
+    setStatus('idle')
+    setMessage('')
+    try {
+      const { token } = await getConnectToken()
+      setConnectToken(token)
+      setSyncing(true)
+    } catch (error: any) {
+      setStatus('error')
+      setMessage(error.message)
+    }
+  }
+
+  const handlePluggySuccess = async ({ item }: { item: { id: string } }) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) throw new Error('Sessão expirada. Faça login novamente.')
+
+      const syncRes = await fetch('/.netlify/functions/sync-pluggy', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ item_id: item.id }),
+      })
+
+      const syncData = await syncRes.json()
+      if (!syncRes.ok) throw new Error(syncData.error)
+
+      await Promise.all([refreshPlanContext(), fetchConnectedAccounts()])
+      setStatus('success')
+      setMessage(`${syncData.totalUpserted} transações sincronizadas com sucesso!`)
+    } catch (error: any) {
+      setStatus('error')
+      setMessage(error.message)
+    } finally {
+      setSyncing(false)
+      setConnectToken('')
+    }
+  }
 
   const handleRemoveAccount = async (account: Account) => {
     const confirmed = window.confirm(`Remover a conta ${account.bank_name}? Essa ação apaga as transações relacionadas.`)
@@ -103,66 +140,6 @@ export default function ConectarBanco() {
     setStatus('success')
     setMessage('Conta removida com sucesso. Transações relacionadas foram limpas.')
     setRemovingId(null)
-  }
-
-  const handleConnect = async () => {
-    setSyncing(true)
-    setStatus('idle')
-    setMessage('')
-
-    try {
-      await loadPluggySDK()
-
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) throw new Error('Sessão expirada. Faça login novamente.')
-
-      const tokenRes = await fetch('/.netlify/functions/pluggy-token', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      })
-      const tokenData = await tokenRes.json()
-      if (!tokenRes.ok) throw new Error(tokenData.error ?? 'Falha ao gerar token de conexão.')
-
-      if (!window.PluggyConnect) throw new Error('Widget Pluggy não carregado. Recarregue a página.')
-
-      new window.PluggyConnect({
-        connectToken: tokenData.accessToken,
-        onSuccess: async ({ item }) => {
-          try {
-            const syncRes = await fetch('/.netlify/functions/sync-pluggy', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${session.access_token}`,
-              },
-              body: JSON.stringify({ item_id: item.id }),
-            })
-
-            const syncData = await syncRes.json()
-            if (!syncRes.ok) throw new Error(syncData.error)
-
-            await Promise.all([refreshPlanContext(), fetchConnectedAccounts()])
-            setStatus('success')
-            setMessage(`${syncData.totalUpserted} transações sincronizadas com sucesso!`)
-          } catch (error: any) {
-            setStatus('error')
-            setMessage(error.message)
-          } finally {
-            setSyncing(false)
-          }
-        },
-        onError: (error) => {
-          setStatus('error')
-          setMessage(`Erro na conexão: ${error.message}`)
-          setSyncing(false)
-        },
-        onClose: () => setSyncing(false),
-      }).init()
-    } catch (err: any) {
-      setStatus('error')
-      setMessage(err.message)
-      setSyncing(false)
-    }
   }
 
   if (isLoading) return <div className="animate-pulse p-8 text-white">Carregando...</div>
@@ -228,9 +205,27 @@ export default function ConectarBanco() {
             <CardDescription>Após autorizar no Pluggy, suas transações entram no dashboard automaticamente.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button onClick={handleConnect} disabled={syncing} size="lg" className="w-full">
-              {syncing ? 'Conectando...' : '🏦 Conectar minha conta bancária'}
-            </Button>
+            {syncing && connectToken ? (
+              <PluggyConnect
+                connectToken={connectToken}
+                disabled={!canConnectAccount}
+                onSuccess={handlePluggySuccess}
+                onError={(error) => {
+                  setStatus('error')
+                  setMessage(error.message)
+                  setSyncing(false)
+                  setConnectToken('')
+                }}
+                onClose={() => {
+                  setSyncing(false)
+                  setConnectToken('')
+                }}
+              />
+            ) : (
+              <Button onClick={openPluggy} size="lg" className="w-full">
+                🏦 Conectar minha conta bancária
+              </Button>
+            )}
           </CardContent>
         </Card>
       )}
