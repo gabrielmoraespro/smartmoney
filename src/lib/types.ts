@@ -28,7 +28,8 @@ export interface Transaction {
   amount: number;
   type: 'debit' | 'credit';
   category?: string;
-  date: string;        // ISO date string 'YYYY-MM-DD'
+  category_id?: string;
+  date: string; // ISO date string 'YYYY-MM-DD'
   currency: string;
   payment_method?: string;
   pluggy_transaction_id?: string;
