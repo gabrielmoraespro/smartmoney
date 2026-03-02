@@ -1,5 +1,6 @@
 import type { Handler } from '@netlify/functions';
 import { createAdminClient } from '../../src/lib/supabase';
+import { getAccountLimitByPlan } from '../../src/lib/plan';
 
 /** Obtém API Key da Pluggy via Client Credentials */
 async function getPluggyApiKey(): Promise<string> {
@@ -7,7 +8,7 @@ async function getPluggyApiKey(): Promise<string> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      clientId:     process.env.PLUGGY_CLIENT_ID,
+      clientId: process.env.PLUGGY_CLIENT_ID,
       clientSecret: process.env.PLUGGY_CLIENT_SECRET,
     }),
   });
@@ -17,12 +18,10 @@ async function getPluggyApiKey(): Promise<string> {
 }
 
 export const handler: Handler = async (event) => {
-  // Apenas POST
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
   }
 
-  // Valida sessão Supabase via Bearer token
   const authHeader = event.headers.authorization ?? '';
   const jwt = authHeader.replace('Bearer ', '');
   if (!jwt) return { statusCode: 401, body: 'Unauthorized' };
@@ -32,9 +31,27 @@ export const handler: Handler = async (event) => {
   if (error || !user) return { statusCode: 401, body: 'Invalid session' };
 
   try {
+    const [{ data: profile }, { count: accountCount }] = await Promise.all([
+      supabase.from('profiles').select('plan_status').eq('id', user.id).single(),
+      supabase
+        .from('accounts')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('is_active', true),
+    ]);
+
+    const accountLimit = getAccountLimitByPlan(profile?.plan_status);
+    if ((accountCount ?? 0) >= accountLimit) {
+      return {
+        statusCode: 403,
+        body: JSON.stringify({
+          error: `Limite de contas atingido para seu plano (${accountLimit}).`,
+        }),
+      };
+    }
+
     const apiKey = await getPluggyApiKey();
 
-    // Gera Connect Token (expira em 30 min)
     const tokenRes = await fetch('https://api.pluggy.ai/connect_token', {
       method: 'POST',
       headers: {
@@ -42,7 +59,7 @@ export const handler: Handler = async (event) => {
         'X-API-KEY': apiKey,
       },
       body: JSON.stringify({
-        clientUserId: user.id, // vincula o token ao usuário
+        clientUserId: user.id,
       }),
     });
 
