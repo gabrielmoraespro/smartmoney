@@ -1,14 +1,21 @@
 import { createClient } from '@supabase/supabase-js'
 
-// Cliente público — roda no browser via Vite
-const supabaseUrl  = import.meta.env.VITE_SUPABASE_URL as string
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string
 const supabaseAnon = import.meta.env.VITE_SUPABASE_ANON_KEY as string
 
 export const supabase = createClient(supabaseUrl, supabaseAnon)
 
-// Admin client — APENAS para Netlify Functions (Node.js)
-// NÃO usa import.meta.env (Vite) — usa process.env (Node.js)
-// NÃO tem prefixo VITE_ — nunca expor service role key no browser
+export async function getUserAuthHeaders() {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session?.access_token) throw new Error('Sessão inválida para chamada autenticada ao Supabase.')
+
+  return {
+    apikey: supabaseAnon,
+    Authorization: `Bearer ${session.access_token}`,
+    'Content-Type': 'application/json',
+  }
+}
+
 export const createAdminClient = () =>
   createClient(
     process.env.SUPABASE_URL!,

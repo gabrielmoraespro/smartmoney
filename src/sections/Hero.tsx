@@ -40,7 +40,7 @@ export function Hero() {
                 transition={{ duration: 0.6, delay: 0.2 }}
                 className="text-[#d1e29d] text-sm font-medium tracking-wider uppercase"
               >
-                AI-Powered Finance
+                SmartMoney
               </motion.p>
               <motion.h1
                 initial={{ opacity: 0, y: 80 }}
@@ -48,8 +48,8 @@ export function Hero() {
                 transition={{ duration: 0.8, delay: 0.4, ease: [0.16, 1, 0.3, 1] }}
                 className="text-5xl md:text-6xl lg:text-7xl font-medium text-white leading-[1.1]"
               >
-                Your Money,{' '}
-                <span className="text-gradient">Smarter.</span>
+                Controle financeiro
+                <span className="text-gradient">inteligente.</span>
               </motion.h1>
             </motion.div>
 
@@ -59,7 +59,7 @@ export function Hero() {
               transition={{ duration: 0.7, delay: 0.9 }}
               className="text-lg md:text-xl text-white/70 max-w-md"
             >
-              AI-powered finance that understands you. Track, save, and grow with zero effort.
+              Conecte seus bancos, acompanhe entradas e saídas em tempo real e tenha clareza total das suas finanças.
             </motion.p>
 
             <motion.div
@@ -77,7 +77,7 @@ export function Hero() {
                 onClick={() => navigate('/cadastro')}
                 className="group px-8 py-4 bg-[#d1e29d] text-black font-semibold rounded-full flex items-center gap-2 hover:shadow-[0_0_40px_rgba(209,226,157,0.4)] transition-all duration-300"
               >
-                Start Free
+                Começar grátis
                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </motion.button>
               <motion.button
@@ -89,7 +89,7 @@ export function Hero() {
                 className="px-8 py-4 border border-white/20 text-white font-semibold rounded-full flex items-center gap-2 hover:bg-white/5 transition-all duration-300"
               >
                 <Play className="w-5 h-5" />
-                Watch Demo
+                Ver demonstração
               </motion.button>
             </motion.div>
 
