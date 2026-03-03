@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
+import { fetchJson } from '../../lib/http'
 import { usePlanGuard } from '../../hooks/usePlanGuard'
 import type { Account } from '../../lib/types'
 import { PluggyConnect } from '../../components/pluggy/PluggyConnect'
@@ -22,15 +23,6 @@ export default function ConectarBanco() {
   const [message, setMessage] = useState('')
 
   const functionsBaseUrl = import.meta.env.VITE_FUNCTIONS_BASE_URL ?? '/.netlify/functions'
-
-  const parseResponse = async (res: Response) => {
-    const raw = await res.text()
-    try {
-      return raw ? JSON.parse(raw) : {}
-    } catch {
-      return { error: raw || `Resposta inválida (${res.status})` }
-    }
-  }
 
   const fetchConnectedAccounts = async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -60,15 +52,14 @@ export default function ConectarBanco() {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) throw new Error('Sessão expirada. Faça login novamente.')
 
-    const tokenRes = await fetch(`${functionsBaseUrl}/pluggy-token`, {
+    const tokenRes = await fetchJson<{ accessToken?: string; error?: string }>(`${functionsBaseUrl}/pluggy-token`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${session.access_token}`,
       },
     })
-    const tokenData = await parseResponse(tokenRes)
-    if (!tokenRes.ok) throw new Error(tokenData.error ?? 'Falha ao gerar token de conexão.')
-    return { token: tokenData.accessToken as string, sessionToken: session.access_token }
+    if (!tokenRes.ok) throw new Error(tokenRes.data.error ?? 'Falha ao gerar token de conexão.')
+    return { token: tokenRes.data.accessToken as string }
   }
 
   const openPluggy = async () => {
@@ -95,7 +86,7 @@ export default function ConectarBanco() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) throw new Error('Sessão expirada. Faça login novamente.')
 
-      const syncRes = await fetch(`${functionsBaseUrl}/sync-pluggy`, {
+      const syncRes = await fetchJson<{ totalUpserted?: number; error?: string }>(`${functionsBaseUrl}/sync-pluggy`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -104,12 +95,11 @@ export default function ConectarBanco() {
         body: JSON.stringify({ item_id: item.id }),
       })
 
-      const syncData = await parseResponse(syncRes)
-      if (!syncRes.ok) throw new Error(syncData.error)
+      if (!syncRes.ok) throw new Error(syncRes.data.error)
 
       await Promise.all([refreshPlanContext(), fetchConnectedAccounts()])
       setStatus('success')
-      setMessage(`${syncData.totalUpserted} transações sincronizadas com sucesso!`)
+      setMessage(`${syncRes.data.totalUpserted ?? 0} transações sincronizadas com sucesso!`)
     } catch (error: any) {
       setStatus('error')
       const msg = String(error.message || '')
