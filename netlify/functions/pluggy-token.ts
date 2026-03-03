@@ -5,16 +5,16 @@ import { PluggyClient } from './_lib/pluggy-client';
 
 export const handler: Handler = async (event) => {
   if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, body: 'Method Not Allowed' };
+    return { statusCode: 405, body: 'Method Not Allowed' }
   }
 
   const authHeader = event.headers.authorization ?? '';
   const jwt = authHeader.replace('Bearer ', '');
   if (!jwt) return { statusCode: 401, body: 'Unauthorized' };
 
-  const supabase = createAdminClient();
-  const { data: { user }, error } = await supabase.auth.getUser(jwt);
-  if (error || !user) return { statusCode: 401, body: 'Invalid session' };
+  const supabase = createAdminClient()
+  const { data: { user }, error: authError } = await supabase.auth.getUser(jwt)
+  if (authError || !user) return { statusCode: 401, body: 'Invalid session' }
 
   try {
     const [{ data: profile }, { count: accountCount }] = await Promise.all([
@@ -50,9 +50,13 @@ export const handler: Handler = async (event) => {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ accessToken }),
-    };
+    }
   } catch (err: any) {
-    console.error('[pluggy-token]', err.message);
-    return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
+    console.error('[pluggy-token] erro:', err.message)
+    return {
+      statusCode: 500,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ error: err.message }),
+    }
   }
-};
+}
