@@ -104,6 +104,26 @@ export default function ConectarBanco() {
       setSyncing(false)
       setConnectToken('')
     }
+
+    if (account.pluggy_item_id) {
+      const { count: remaining } = await supabase
+        .from('accounts')
+        .select('id', { count: 'exact', head: true })
+        .eq('pluggy_item_id', account.pluggy_item_id)
+        .eq('is_active', true)
+
+      if ((remaining ?? 0) === 0) {
+        await supabase
+          .from('pluggy_connections')
+          .delete()
+          .eq('pluggy_item_id', account.pluggy_item_id)
+      }
+    }
+
+    await Promise.all([fetchConnectedAccounts(), refreshPlanContext()])
+    setStatus('success')
+    setMessage('Conta removida com sucesso. Transações relacionadas foram limpas.')
+    setRemovingId(null)
   }
 
   const handleRemoveAccount = async (account: Account) => {
@@ -176,6 +196,14 @@ export default function ConectarBanco() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-amber-400"><Lock className="h-5 w-5" /> Limite de contas atingido</CardTitle>
             <CardDescription>{isPro ? 'Você já atingiu o limite de 2 contas do plano PRO.' : 'No plano Free você pode conectar 1 conta. Faça upgrade para conectar até 2.'}</CardDescription>
+          </CardHeader>
+          {!isPro && <CardContent><Button onClick={() => navigate('/app/plano')}>Ver planos e fazer upgrade</Button></CardContent>}
+        </Card>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Landmark className="h-5 w-5" /> Vincular nova conta</CardTitle>
+            <CardDescription>Após autorizar no Pluggy, suas transações entram no dashboard automaticamente.</CardDescription>
           </CardHeader>
           {!isPro && <CardContent><Button onClick={() => navigate('/app/plano')}>Ver planos e fazer upgrade</Button></CardContent>}
         </Card>
