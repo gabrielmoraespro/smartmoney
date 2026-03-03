@@ -36,10 +36,13 @@ export const handler: Handler = async (event) => {
       };
     }
 
-    const pluggyClient = new PluggyClient(
-      process.env.PLUGGY_CLIENT_ID!,
-      process.env.PLUGGY_CLIENT_SECRET!,
-    );
+    const clientId = process.env.PLUGGY_CLIENT_ID
+    const clientSecret = process.env.PLUGGY_CLIENT_SECRET
+    if (!clientId || !clientSecret) {
+      throw new Error('PLUGGY_CLIENT_ID/PLUGGY_CLIENT_SECRET não configurados no backend.')
+    }
+
+    const pluggyClient = new PluggyClient(clientId, clientSecret);
 
     const accessToken = await pluggyClient.createConnectToken(user.id);
 

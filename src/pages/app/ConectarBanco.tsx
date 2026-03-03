@@ -78,6 +78,7 @@ export default function ConectarBanco() {
       const { token } = await getConnectToken()
       setConnectToken(token)
       setSyncing(true)
+      setMessage('Abrindo ambiente seguro do Pluggy...')
     } catch (error: any) {
       setStatus('error')
       const msg = String(error.message || '')
@@ -280,6 +281,7 @@ export default function ConectarBanco() {
             {syncing && connectToken ? (
               <PluggyConnect
                 connectToken={connectToken}
+                autoOpen
                 disabled={!canConnectAccount}
                 onSuccess={handlePluggySuccess}
                 onError={(error) => {

@@ -4,12 +4,16 @@ import type { PluggyTransaction } from '../../src/lib/types';
 import { getAccountLimitByPlan } from '../../src/lib/plan';
 
 async function getPluggyApiKey(): Promise<string> {
+  const clientId = process.env.PLUGGY_CLIENT_ID
+  const clientSecret = process.env.PLUGGY_CLIENT_SECRET
+  if (!clientId || !clientSecret) throw new Error('PLUGGY_CLIENT_ID/PLUGGY_CLIENT_SECRET não configurados.')
+
   const res = await fetch('https://api.pluggy.ai/auth', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      clientId: process.env.PLUGGY_CLIENT_ID,
-      clientSecret: process.env.PLUGGY_CLIENT_SECRET,
+      clientId,
+      clientSecret,
     }),
   });
   if (!res.ok) throw new Error(`Pluggy auth failed: ${res.status}`);
