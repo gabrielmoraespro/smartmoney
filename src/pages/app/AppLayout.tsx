@@ -10,7 +10,7 @@ import {
 const navItems = [
   { to: '/app/dashboard',      label: 'Dashboard',      icon: LayoutDashboard, proOnly: false },
   { to: '/app/transacoes',     label: 'Transações',     icon: ArrowLeftRight,  proOnly: false },
-  { to: '/app/conectar-banco', label: 'Conectar Banco', icon: Landmark,        proOnly: true  },
+  { to: '/app/conectar-banco', label: 'Conectar Banco', icon: Landmark,        proOnly: false },
   { to: '/app/plano',          label: 'Meu Plano',      icon: CreditCard,      proOnly: false },
 ]
 
