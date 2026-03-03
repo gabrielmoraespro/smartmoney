@@ -3,6 +3,14 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string
 const supabaseAnon = import.meta.env.VITE_SUPABASE_ANON_KEY as string
 
+// Guard explícito — falha rápido com mensagem clara durante dev
+if (!supabaseUrl || !supabaseAnon) {
+  throw new Error(
+    '[SmartMoney] VITE_SUPABASE_URL ou VITE_SUPABASE_ANON_KEY não encontrados.\n' +
+    'Crie o arquivo .env.local na raiz do projeto com as variáveis corretas e reinicie o Vite.'
+  )
+}
+
 export const supabase = createClient(supabaseUrl, supabaseAnon)
 
 export async function getUserAuthHeaders() {
