@@ -23,6 +23,9 @@ import ConectarBanco from './pages/app/ConectarBanco'
 import Plano from './pages/app/Plano'
 import PlanoSuccess from './pages/app/PlanoSuccess'
 import Configuracoes from './pages/app/Configuracoes'
+import Categorias from './pages/app/Categorias'
+import Assinaturas from './pages/app/Assinaturas'
+import Cartoes from './pages/app/Cartoes'
 
 // Sua landing page original — intacta
 function LandingPage() {
@@ -99,6 +102,9 @@ export default function App() {
         <Route path="plano"          element={<Plano />} />
         <Route path="plano/success"  element={<PlanoSuccess />} />
         <Route path="configuracoes"  element={<Configuracoes />} />
+        <Route path="categorias"     element={<Categorias />} />
+        <Route path="assinaturas"    element={<Assinaturas />} />
+        <Route path="cartoes"        element={<Cartoes />} />
       </Route>
 
       {/* Qualquer rota desconhecida volta pra home */}
