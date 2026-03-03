@@ -25,23 +25,21 @@ export interface Account {
 }
 
 export interface Transaction {
-  id: string
-  account_id: string
-  user_id: string
-  description: string
-  amount: number
-  type: 'debit' | 'credit'
-  category?: string
-  category_id?: string
-  date: string
-  balance_after?: number
-  currency: string
-  payment_method?: string
-  pluggy_transaction_id?: string
-  is_manual: boolean
-  notes?: string
-  created_at?: string
-  updated_at?: string
+  id: string;
+  account_id: string;
+  user_id: string;
+  description: string;
+  amount: number;
+  type: 'debit' | 'credit';
+  category?: string;
+  category_id?: string;
+  date: string; // ISO date string 'YYYY-MM-DD'
+  currency: string;
+  payment_method?: string;
+  pluggy_transaction_id?: string;
+  is_manual: boolean;
+  notes?: string;
+  created_at?: string;
 }
 
 export interface PluggyTransaction {

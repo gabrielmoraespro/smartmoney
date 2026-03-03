@@ -13,28 +13,17 @@ if (!supabaseUrl || !supabaseAnon) {
 
 export const supabase = createClient(supabaseUrl, supabaseAnon)
 
-/**
- * Headers autenticados para chamadas diretas à REST API do Supabase.
- * CORREÇÃO: inclui "Accept: application/json" — sem ele, PostgREST retorna 406.
- */
-export async function getUserAuthHeaders(): Promise<Record<string, string>> {
+export async function getUserAuthHeaders() {
   const { data: { session } } = await supabase.auth.getSession()
-  if (!session?.access_token) {
-    throw new Error('Sessão inválida. Faça login novamente.')
-  }
+  if (!session?.access_token) throw new Error('Sessão inválida para chamada autenticada ao Supabase.')
 
   return {
-    'apikey': supabaseAnon,
-    'Authorization': `Bearer ${session.access_token}`,
+    apikey: supabaseAnon,
+    Authorization: `Bearer ${session.access_token}`,
     'Content-Type': 'application/json',
-    'Accept': 'application/json', // ← FIX: necessário para PostgREST não retornar 406
   }
 }
 
-/**
- * Cliente admin (service role) — APENAS para Netlify Functions (Node.js).
- * Nunca importar este export em código de frontend.
- */
 export const createAdminClient = () =>
   createClient(
     process.env.SUPABASE_URL!,
