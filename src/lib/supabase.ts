@@ -3,12 +3,9 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string
 const supabaseAnon = import.meta.env.VITE_SUPABASE_ANON_KEY as string
 
-// Guard explícito — falha rápido com mensagem clara durante dev
-if (!supabaseUrl || !supabaseAnon) {
-  throw new Error(
-    '[SmartMoney] VITE_SUPABASE_URL ou VITE_SUPABASE_ANON_KEY não encontrados.\n' +
-    'Crie o arquivo .env.local na raiz do projeto com as variáveis corretas e reinicie o Vite.'
-  )
+// Proteção contra configuração insegura no frontend
+if (supabaseAnon?.includes('service_role')) {
+  throw new Error('VITE_SUPABASE_ANON_KEY está com token service_role. Use APENAS a chave anon no frontend.')
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnon)
@@ -24,9 +21,17 @@ export async function getUserAuthHeaders() {
   }
 }
 
-export const createAdminClient = () =>
-  createClient(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+export const createAdminClient = () => {
+  const serverSupabaseUrl = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!serverSupabaseUrl || !serviceRoleKey) {
+    throw new Error('SUPABASE_URL/VITE_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY são obrigatórios no backend.')
+  }
+
+  return createClient(
+    serverSupabaseUrl,
+    serviceRoleKey,
     { auth: { autoRefreshToken: false, persistSession: false } }
   )
+}
