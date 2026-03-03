@@ -21,6 +21,8 @@ import Dashboard from './pages/app/Dashboard'
 import Transacoes from './pages/app/Transacoes'
 import ConectarBanco from './pages/app/ConectarBanco'
 import Plano from './pages/app/Plano'
+import PlanoSuccess from './pages/app/PlanoSuccess'
+import Configuracoes from './pages/app/Configuracoes'
 
 // Sua landing page original — intacta
 function LandingPage() {
@@ -95,6 +97,8 @@ export default function App() {
         <Route path="transacoes"     element={<Transacoes />} />
         <Route path="conectar-banco" element={<ConectarBanco />} />
         <Route path="plano"          element={<Plano />} />
+        <Route path="plano/success"  element={<PlanoSuccess />} />
+        <Route path="configuracoes"  element={<Configuracoes />} />
       </Route>
 
       {/* Qualquer rota desconhecida volta pra home */}
