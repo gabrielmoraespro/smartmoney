@@ -37,6 +37,7 @@ export default function Dashboard() {
   const [showValues, setShowValues] = useState(true)
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
 
   useEffect(() => {
     const load = async () => {
