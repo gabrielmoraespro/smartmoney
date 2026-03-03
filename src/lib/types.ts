@@ -1,23 +1,27 @@
 export interface Profile {
-  id: string;
-  email: string;
-  full_name?: string;
-  stripe_customer_id?: string;
-  plan_status: 'free' | 'pro' | 'pro_annual' | 'canceled';
-  plan_expires_at?: string;
+  id: string
+  email: string
+  full_name?: string
+  stripe_customer_id?: string
+  plan_status: 'free' | 'pro' | 'pro_annual' | 'canceled'
+  plan_expires_at?: string
+  created_at?: string
+  updated_at?: string
 }
 
 export interface Account {
-  id: string;
-  user_id: string;
-  bank_name: string;
-  type: 'checking' | 'savings' | 'credit' | 'investment';
-  balance: number;
-  currency: string;
-  pluggy_item_id?: string;
-  pluggy_account_id?: string;
-  last_synced_at?: string;
-  is_active: boolean;
+  id: string
+  user_id: string
+  bank_name: string
+  type: 'checking' | 'savings' | 'credit' | 'investment'
+  balance: number
+  currency: string
+  pluggy_item_id?: string
+  pluggy_account_id?: string
+  last_synced_at?: string
+  is_active: boolean
+  created_at?: string
+  updated_at?: string
 }
 
 export interface Transaction {
@@ -38,17 +42,16 @@ export interface Transaction {
   created_at?: string;
 }
 
-// Payload que chega da Pluggy (simplificado)
 export interface PluggyTransaction {
-  id: string;
-  description: string;
-  amount: number;
-  type: 'DEBIT' | 'CREDIT';
-  category?: string;
-  categoryId?: string;
-  date: string;
-  balance?: number;
-  currencyCode?: string;
-  paymentMethod?: string;
-  accountId: string;
+  id: string
+  description: string
+  amount: number
+  type: 'DEBIT' | 'CREDIT'
+  category?: string
+  categoryId?: string
+  date: string
+  balance?: number
+  currencyCode?: string
+  paymentMethod?: string
+  accountId: string
 }

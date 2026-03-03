@@ -164,7 +164,58 @@ export default function ConectarBanco() {
     setRemovingId(null)
   }
 
-  if (isLoading) return <div className="animate-pulse p-8 text-white">Carregando...</div>
+  // ─── Remove conta vinculada ─────────────────────────────────────────────────
+  const handleRemoveAccount = async (account: Account) => {
+    const confirmed = window.confirm(
+      `Remover "${account.bank_name}"?\nIsso apagará as transações relacionadas.`
+    )
+    if (!confirmed) return
+
+    setRemovingId(account.id)
+    setStatus('idle')
+
+    const { error } = await supabase
+      .from('accounts')
+      .delete()
+      .eq('id', account.id)
+
+    if (error) {
+      setStatus('error')
+      setMessage('Não foi possível remover a conta. Tente novamente.')
+      setRemovingId(null)
+      return
+    }
+
+    // Limpa pluggy_connections se não restar nenhuma conta do item
+    if (account.pluggy_item_id) {
+      const { count } = await supabase
+        .from('accounts')
+        .select('id', { count: 'exact', head: true })
+        .eq('pluggy_item_id', account.pluggy_item_id)
+
+      if ((count ?? 0) === 0) {
+        await supabase
+          .from('pluggy_connections')
+          .delete()
+          .eq('pluggy_item_id', account.pluggy_item_id)
+      }
+    }
+
+    await Promise.all([fetchConnectedAccounts(), refreshPlanContext()])
+    setStatus('success')
+    setMessage('Conta removida com sucesso.')
+    setRemovingId(null)
+  }
+
+  // ─── Render ─────────────────────────────────────────────────────────────────
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 p-8 text-muted-foreground">
+        <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
+        Carregando plano...
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6 max-w-4xl">
