@@ -53,7 +53,7 @@ export const handler: Handler = async (event) => {
       mode: 'subscription',
       customer: customerId,
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${appUrl}/app/plano/success?session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${appUrl}/app/plano?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${appUrl}/app/plano?checkout=canceled`,
       metadata: { user_id: profile.id },
     });

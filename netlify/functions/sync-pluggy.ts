@@ -109,7 +109,7 @@ export const handler: Handler = async (event) => {
           user_id: user.id,
           bank_name: pluggyAccount.institution?.name ?? 'Banco',
           type: mapAccountType(pluggyAccount.type),
-          balance: pluggyAccount.balance,
+          balance: pluggyAccount.type?.toUpperCase() === 'CREDIT' ? (pluggyAccount.creditData?.availableCreditLimit ?? pluggyAccount.balance) : pluggyAccount.balance,
           currency: pluggyAccount.currencyCode ?? 'BRL',
           pluggy_item_id: pluggyItemId,
           pluggy_account_id: pluggyAccount.id,

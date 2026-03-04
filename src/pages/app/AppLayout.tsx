@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../../lib/supabase'
+import AIChat from '../../components/AIChat'
 import { Toaster } from '../../components/ui/sonner'
 import { usePlanGuard } from '../../hooks/usePlanGuard'
 import { useResponsive } from '../../hooks/useResponsive'
@@ -231,6 +232,7 @@ export default function AppLayout({ session }: { session: Session }) {
         </nav>
       )}
 
+      <AIChat />
       <Toaster richColors position={isNarrow ? 'bottom-center' : 'top-right'} />
 
       <style>{`
